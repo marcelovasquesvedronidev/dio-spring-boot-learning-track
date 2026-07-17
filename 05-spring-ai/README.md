@@ -4,12 +4,12 @@ Fork: https://github.com/marcelovasquesvedronidev/dio-spring-boot-learning-track
 
 ## O que o projeto faz
 
-É uma API de controle financeiro (orçamento pessoal) construída com Spring Boot 4 e Spring AI. Ela permite cadastrar usuários, autenticar via JWT, registrar e consultar transações financeiras por categoria, e também processar comandos de voz: o usuário envia um áudio, a API transcreve o conteúdo, identifica a intenção (criar ou consultar uma transação), executa a ação correspondente e devolve a resposta final também em áudio (texto → fala).
+É uma API de controle financeiro (orçamento pessoal) construída com Spring Boot 4 e Spring AI. Ela permite cadastrar usuários, autenticar via JWT, registrar transações financeiras e consultá-las por categoria ou por período (data inicial e final), além de processar comandos de voz: o usuário envia um áudio, a API transcreve o conteúdo, identifica a intenção (criar ou consultar uma transação), executa a ação correspondente e devolve a resposta final também em áudio (texto → fala).
 
 O projeto segue arquitetura em camadas (Clean/Hexagonal Architecture), separando:
 
 - **domain**: entidades e regras de negócio (`Transaction`, `Category`, `User`, `TransactionRepository`)
-- **application**: casos de uso (`PersistTransactionUseCase`, `ListTransactionsByCategoryUseCase`), usados tanto pela API REST quanto pelas ferramentas (`@Tool`) que o modelo de IA pode acionar
+- **application**: casos de uso (`PersistTransactionUseCase`, `ListTransactionsByCategoryUseCase`, `ListTransactionsByPeriodUseCase`), usados tanto pela API REST quanto pelas ferramentas (`@Tool`) que o modelo de IA pode acionar
 - **infrastructure**: adaptadores HTTP (controllers, requests), persistência JPA (entities, repositories) e segurança (JWT, filtros, configurações)
 
 ## Tecnologias utilizadas
@@ -41,7 +41,9 @@ O projeto segue arquitetura em camadas (Clean/Hexagonal Architecture), separando
 
 ## Qual melhoria eu implementei
 
-Implementei a camada de **autenticação JWT stateless**, incluindo:
+Implementei duas melhorias em cima do projeto base:
+
+### 1. Autenticação JWT stateless
 
 - `AuthenticationController` (endpoint `/login`) para autenticar o usuário e gerar o token
 - `UserController` (endpoint `/users`) para cadastro de usuário
@@ -50,6 +52,17 @@ Implementei a camada de **autenticação JWT stateless**, incluindo:
 - `SecurityFilter` e `SecurityConfigurations`, para interceptar as requisições, validar o token JWT no header `Authorization` e proteger os endpoints de transações (`/transactions`) e do fluxo de IA (`/ai`)
 
 Isso garante que apenas usuários autenticados consigam criar/consultar transações ou usar o endpoint de comandos de voz, sem que a API precise manter sessão em memória (autenticação stateless).
+
+### 2. Consulta de transações por período
+
+Adicionei a possibilidade de filtrar transações entre duas datas, sem alterar nenhum comportamento já existente:
+
+- Campo `date` adicionado em `Transaction` (domain) e `TransactionEntity` (persistência), preenchido automaticamente na criação da transação
+- Novo método `findByPeriod` no `TransactionRepository`, implementado via query derivada (`findAllByDateBetween`) no Spring Data JPA
+- `ListTransactionsByPeriodUseCase`, novo caso de uso que segue o mesmo padrão do `ListTransactionsByCategoryUseCase` e também é exposto como ferramenta (`@Tool`) para o fluxo de comando de voz
+- Novo endpoint `GET /transactions/period?start=...&end=...`
+
+Assim, além de consultar por categoria, o usuário agora pode consultar quanto movimentou em um intervalo de datas específico — por exemplo, "quanto gastei em julho".
 
 ## Como testar o fluxo principal
 
@@ -82,7 +95,13 @@ Isso garante que apenas usuários autenticados consigam criar/consultar transaç
    Authorization: Bearer <token>
    ```
 
-5. **Comando por voz** (autenticado)
+5. **Consultar transações por período** (autenticado)
+   ```
+   GET /transactions/period?start=2026-07-01&end=2026-07-31
+   Authorization: Bearer <token>
+   ```
+
+6. **Comando por voz** (autenticado)
    ```
    POST /ai
    Authorization: Bearer <token>
@@ -96,3 +115,5 @@ Isso garante que apenas usuários autenticados consigam criar/consultar transaç
 - Como manter a separação de camadas (domain/application/infrastructure) mesmo ao introduzir segurança, sem contaminar as regras de negócio com detalhes de infraestrutura
 - Como o Spring AI expõe casos de uso da aplicação como ferramentas (`@Tool`) para que o modelo de IA possa decidir e executar ações reais dentro da API
 - Como integrar autenticação com fluxos que envolvem múltiplas etapas assíncronas de IA (transcrição de áudio → decisão do modelo → execução do caso de uso → resposta em áudio)
+- Como evoluir um modelo de domínio de forma incremental (adicionar um campo novo em `Transaction`/`TransactionEntity` sem quebrar o que já funcionava), propagando a mudança pelas camadas na ordem certa: domain → persistência → aplicação → controller
+- Como usar *query methods* derivados do Spring Data JPA (`findAllByDateBetween`) para evitar escrever SQL manual em consultas simples
