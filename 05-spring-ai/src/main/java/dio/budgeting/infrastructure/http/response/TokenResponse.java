@@ -1,4 +1,8 @@
 package dio.budgeting.infrastructure.http.response;
 
-public class TokenResponse {
+public record TokenResponse(String token, String type) {
+    public TokenResponse(String token) {
+        this(token, "Bearer");
+    }
 }
+

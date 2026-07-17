@@ -1,4 +1,9 @@
 package dio.budgeting.infrastructure.http.response;
 
-public class UserResponse {
+import dio.budgeting.infrastructure.persistence.entity.UserEntity;
+
+public record UserResponse(String id, String email) {
+    public static UserResponse from(UserEntity entity) {
+        return new UserResponse(entity.getId(), entity.getEmail());
+    }
 }

@@ -1,85 +1,98 @@
-# DIO Spring Boot - Final Project 05: Spring AI (budgeting)
+# Budgeting API - Spring Boot + Spring AI (Desafio DIO)
 
-## Introduction
+Fork: https://github.com/marcelovasquesvedronidev/dio-spring-boot-learning-track/tree/main/05-spring-ai
 
-This final module applies Spring AI in a budgeting API while preserving the same layered architecture used across the track.
+## O que o projeto faz
 
-The goal is to integrate AI capabilities without bypassing domain and use case boundaries.
+É uma API de controle financeiro (orçamento pessoal) construída com Spring Boot 4 e Spring AI. Ela permite cadastrar usuários, autenticar via JWT, registrar e consultar transações financeiras por categoria, e também processar comandos de voz: o usuário envia um áudio, a API transcreve o conteúdo, identifica a intenção (criar ou consultar uma transação), executa a ação correspondente e devolve a resposta final também em áudio (texto → fala).
 
-## Code Context
+O projeto segue arquitetura em camadas (Clean/Hexagonal Architecture), separando:
 
-The project processes voice commands to create and query financial transactions.
+- **domain**: entidades e regras de negócio (`Transaction`, `Category`, `User`, `TransactionRepository`)
+- **application**: casos de uso (`PersistTransactionUseCase`, `ListTransactionsByCategoryUseCase`), usados tanto pela API REST quanto pelas ferramentas (`@Tool`) que o modelo de IA pode acionar
+- **infrastructure**: adaptadores HTTP (controllers, requests), persistência JPA (entities, repositories) e segurança (JWT, filtros, configurações)
 
-Primary flow:
+## Tecnologias utilizadas
 
-1. Client uploads an audio file.
-2. Audio is transcribed into text.
-3. The model selects an application tool/use case.
-4. The use case persists or queries transaction data.
-5. The final response is converted to audio.
+- Java + Spring Boot 4
+- Spring AI (`spring.ai`) para transcrição de áudio (Speech-to-Text), tool calling e conversão de texto em áudio (Text-to-Speech), integrando com a API da OpenAI
+- Spring Security + JWT para autenticação stateless
+- Spring Data JPA
+- MySQL (via Docker Compose)
+- Gradle
 
-## Project Structure
+## Como executar a aplicação
 
-- `src/main/java/dio/budgeting/domain`
-  - Domain model and repository contract.
-- `src/main/java/dio/budgeting/application`
-  - Use cases used by both REST and AI tool calling.
-- `src/main/java/dio/budgeting/infrastructure`
-  - HTTP adapters, JPA adapters, and integration glue.
+1. Suba o banco de dados MySQL com Docker Compose:
+   ```bash
+   docker compose up -d
+   ```
 
-## Module-Specific Topics
+2. Configure as variáveis de ambiente necessárias:
+   ```bash
+   export OPENAI_API_KEY="sua_chave_aqui"
+   export JWT_SECRET="seu_segredo_aqui"
+   ```
 
-### Speech-to-text
+3. Rode a aplicação:
+   ```bash
+   ./gradlew bootRun
+   ```
 
-- Uses `TranscriptionModel` for audio transcription.
-- Model settings are configured in `application.properties`.
+## Qual melhoria eu implementei
 
-### Tool calling
+Implementei a camada de **autenticação JWT stateless**, incluindo:
 
-- `ChatClient` registers use-case tools.
-- `@Tool` methods expose business capabilities to the model.
+- `AuthenticationController` (endpoint `/login`) para autenticar o usuário e gerar o token
+- `UserController` (endpoint `/users`) para cadastro de usuário
+- `JwtService`, responsável por gerar e validar os tokens
+- `AutenticacaoService`, responsável pela lógica de autenticação
+- `SecurityFilter` e `SecurityConfigurations`, para interceptar as requisições, validar o token JWT no header `Authorization` e proteger os endpoints de transações (`/transactions`) e do fluxo de IA (`/ai`)
 
-### Text-to-speech
+Isso garante que apenas usuários autenticados consigam criar/consultar transações ou usar o endpoint de comandos de voz, sem que a API precise manter sessão em memória (autenticação stateless).
 
-- `TextToSpeechModel` produces MP3 output from final text.
-- AI endpoint returns generated audio.
+## Como testar o fluxo principal
 
-## Spring AI Documentation
+1. **Cadastrar um usuário**
+   ```
+   POST /users
+   Content-Type: application/json
 
-- Spring AI Reference: https://docs.spring.io/spring-ai/reference/index.html
-- ChatModel API: https://docs.spring.io/spring-ai/reference/api/chatmodel.html
-- ChatClient API: https://docs.spring.io/spring-ai/reference/api/chatclient.html
-- Tools API: https://docs.spring.io/spring-ai/reference/api/tools.html
-- Audio Transcriptions API: https://docs.spring.io/spring-ai/reference/api/audio/transcriptions.html
-- Audio Speech API: https://docs.spring.io/spring-ai/reference/api/audio/speech.html
+   { ... dados do usuário ... }
+   ```
 
-## Shared Architecture References
+2. **Autenticar e obter o token JWT**
+   ```
+   POST /login
+   Content-Type: application/json
 
-Common architecture concepts are documented in the root README:
+   { "email": "...", "password": "..." }
+   ```
+   A resposta retorna o token JWT a ser usado nas próximas requisições.
 
-- [DDD layers](../README.md#ddd-layered-architecture)
-- [Class vs record](../README.md#java-class-vs-java-record-in-domain-modeling)
-- [Strong typed identifiers](../README.md#strong-typed-identifiers)
-- [Repository pattern](../README.md#repository-pattern)
-- [Use cases and Clean Architecture](../README.md#use-cases-and-clean-architecture)
-- [Docker Compose support](../README.md#docker-compose-support-in-development)
+3. **Criar uma transação** (autenticado)
+   ```
+   POST /transactions
+   Authorization: Bearer <token>
+   ```
 
-## How to Run
+4. **Consultar transações por categoria** (autenticado)
+   ```
+   GET /transactions/{category}
+   Authorization: Bearer <token>
+   ```
 
-Set your OpenAI API key:
+5. **Comando por voz** (autenticado)
+   ```
+   POST /ai
+   Authorization: Bearer <token>
+   Content-Type: multipart/form-data
+   ```
+   Envie um arquivo de áudio; a API transcreve o comando, decide entre criar ou consultar uma transação, executa a ação e retorna a resposta em áudio (`audio/mp3`).
 
-```bash
-export OPENAI_API_KEY="your_api_key_here"
-```
+## O que eu aprendi
 
-Run the application and tests:
-
-```bash
-./gradlew bootRun
-./gradlew test
-```
-
-## Notes
-
-- Educational final project focused on AI plus architectural discipline.
-- External provider integration tests may require active credentials.
+- Como implementar autenticação stateless com JWT em Spring Security, incluindo filtros customizados (`SecurityFilter`) e geração/validação de tokens
+- Como manter a separação de camadas (domain/application/infrastructure) mesmo ao introduzir segurança, sem contaminar as regras de negócio com detalhes de infraestrutura
+- Como o Spring AI expõe casos de uso da aplicação como ferramentas (`@Tool`) para que o modelo de IA possa decidir e executar ações reais dentro da API
+- Como integrar autenticação com fluxos que envolvem múltiplas etapas assíncronas de IA (transcrição de áudio → decisão do modelo → execução do caso de uso → resposta em áudio)
