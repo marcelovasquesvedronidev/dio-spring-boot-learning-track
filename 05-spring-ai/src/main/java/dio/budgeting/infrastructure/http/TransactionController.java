@@ -1,6 +1,7 @@
 package dio.budgeting.infrastructure.http;
 
 import dio.budgeting.application.ListTransactionsByCategoryUseCase;
+import dio.budgeting.application.ListTransactionsByPeriodUseCase;
 import dio.budgeting.application.PersistTransactionUseCase;
 import dio.budgeting.domain.Category;
 import dio.budgeting.infrastructure.http.request.TransactionRequest;
@@ -13,12 +14,14 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.*;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -26,6 +29,7 @@ import java.util.List;
 public class TransactionController {
     private final PersistTransactionUseCase persistTransactionUseCase;
     private final ListTransactionsByCategoryUseCase listTransactionsByCategoryUseCase;
+    private final ListTransactionsByPeriodUseCase listTransactionsByPeriodUseCase;
 
     private final TranscriptionModel transcriptionModel;
     private final ChatClient chatClient;
@@ -33,16 +37,18 @@ public class TransactionController {
 
     public TransactionController(PersistTransactionUseCase persistTransactionUseCase,
                                  ListTransactionsByCategoryUseCase listTransactionsByCategoryUseCase,
+                                 ListTransactionsByPeriodUseCase listTransactionsByPeriodUseCase, // ADICIONAR
                                  TranscriptionModel transcriptionModel,
                                  @Value("classpath:prompts/system-message.st") Resource systemPrompt,
                                  ChatClient.Builder chatClientBuilder,
                                  TextToSpeechModel textToSpeechModel) throws IOException {
         this.persistTransactionUseCase = persistTransactionUseCase;
         this.listTransactionsByCategoryUseCase = listTransactionsByCategoryUseCase;
+        this.listTransactionsByPeriodUseCase = listTransactionsByPeriodUseCase;
         this.transcriptionModel = transcriptionModel;
         this.chatClient = chatClientBuilder
                 .defaultSystem(systemPrompt.getContentAsString(Charset.defaultCharset()))
-                .defaultTools(persistTransactionUseCase, listTransactionsByCategoryUseCase)
+                .defaultTools(persistTransactionUseCase, listTransactionsByCategoryUseCase, listTransactionsByPeriodUseCase)
                 .build();
         this.textToSpeechModel = textToSpeechModel;
     }
@@ -58,6 +64,16 @@ public class TransactionController {
     public List<TransactionResponse> readTransactions(
             @PathVariable Category category) {
         return listTransactionsByCategoryUseCase.execute(category)
+                .stream()
+                .map(TransactionResponse::from)
+                .toList();
+    }
+
+    @GetMapping("/period")
+    public List<TransactionResponse> readTransactionsByPeriod(
+            @RequestParam("start") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate start,
+            @RequestParam("end") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate end) {
+        return listTransactionsByPeriodUseCase.execute(start, end)
                 .stream()
                 .map(TransactionResponse::from)
                 .toList();

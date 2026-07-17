@@ -11,6 +11,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDate;
 import java.util.UUID;
 
 @Entity
@@ -28,13 +29,16 @@ public class TransactionEntity {
 
     private String userId;
 
+    private LocalDate date;
+
     public static TransactionEntity from(Transaction transaction) {
         return new TransactionEntity(
                 transaction.getId().uuid(),
                 transaction.getDescription(),
                 transaction.getAmount(),
                 transaction.getCategory(),
-                transaction.getUserId());
+                transaction.getUserId(),
+                transaction.getDate());
     }
 
     public Transaction toDomain() {
@@ -43,7 +47,8 @@ public class TransactionEntity {
                 this.description,
                 this.amount,
                 this.category,
-                this.userId
+                this.userId,
+                this.date
         );
     }
 }

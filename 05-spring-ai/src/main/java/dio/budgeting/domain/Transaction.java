@@ -3,6 +3,7 @@ package dio.budgeting.domain;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
+import java.time.LocalDate;
 import java.util.UUID;
 
 @Getter
@@ -13,13 +14,15 @@ public class Transaction {
     private long amount;
     private Category category;
     private String userId;
+    private LocalDate date;
 
     public Transaction(String description, long amount, Category category, String userId) {
-        this.id = new TransactionId(); // Gera um ID único para a transação
+        this.id = new TransactionId();
         this.description = description;
         this.amount = amount;
         this.category = category;
         this.userId = userId;
+        this.date = LocalDate.now();
     }
 
     public Transaction(TransactionId transactionId, String description, long amount, Category category) {
@@ -28,5 +31,6 @@ public class Transaction {
         this.amount = amount;
         this.category = category;
         this.userId = UUID.randomUUID().toString();
+        this.date = LocalDate.now();
     }
 }

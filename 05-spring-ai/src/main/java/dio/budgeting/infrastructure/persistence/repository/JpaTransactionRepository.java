@@ -6,6 +6,7 @@ import dio.budgeting.domain.TransactionRepository;
 import dio.budgeting.infrastructure.persistence.entity.TransactionEntity;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @Repository
@@ -25,6 +26,14 @@ public class JpaTransactionRepository implements TransactionRepository {
     @Override
     public List<Transaction> findAllByCategory(Category category) {
         return transactionEntityRepository.findAllByCategory(category)
+                .stream()
+                .map(TransactionEntity::toDomain)
+                .toList();
+    }
+
+    @Override
+    public List<Transaction> findByPeriod(LocalDate start, LocalDate end) { // NOVO
+        return transactionEntityRepository.findAllByDateBetween(start, end)
                 .stream()
                 .map(TransactionEntity::toDomain)
                 .toList();
